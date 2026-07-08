@@ -26,9 +26,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ Lucas' Ultimate Cube Solver")
+st.title("⚡ Lucas' Rubik's Cube Solver")
 st.write("Hold your cube with **BLUE facing you** and **WHITE on top**.")
-st.write("Pick the colors for all 6 sides below. It will not lag at all while you choose!")
+st.write("Pick the colours for all 6 sides below.")
 
 # Fixed center mapping based on your cube
 face_keys = [
@@ -55,7 +55,7 @@ with st.form("ultimate_paint_form"):
     
     # Generate all 6 faces smoothly on one page
     for face in face_keys:
-        st.write(f"### 🧱 {face}")
+        st.write(f"###  {face}")
         row_cells = []
         
         idx = 1
