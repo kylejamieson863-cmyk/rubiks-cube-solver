@@ -1,4 +1,4 @@
-# Force Python version compatibility
 streamlit==1.35.0
-opencv-python-headless
-rubik-cube
+opencv-python-headless==4.9.0.80
+rubik-cube==0.0.1
+# Note: Pillow is handled natively by Streamlit. Do not list it.
