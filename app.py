@@ -1,27 +1,28 @@
 import streamlit as st
 import cv2
 import numpy as np
+import kociemba
 
 st.set_page_config(page_title="Real Rubik's Cube Solver", page_icon="🎲", layout="centered")
 
-st.title("🎲 Simple Rubik's Cube Solver")
-st.write("Snap a picture of all 6 sides one by one, then get your genuine solution!")
+st.title("🎲 Custom Rubik's Cube Solver")
+st.write("Hold the cube with **BLUE facing you** and **WHITE on top** for all scans.")
 
-# Initialize an organized memory storage for the 6 sides
+# Initialize memory storage mapping directly to your cube layout description
 if "cube_faces" not in st.session_state:
     st.session_state.cube_faces = {
+        "Front (Blue center)": None,
         "Top (White center)": None,
         "Bottom (Yellow center)": None,
-        "Front (Green center)": None,
-        "Back (Blue center)": None,
-        "Left (Orange center)": None,
-        "Right (Red center)": None
+        "Right (Orange center)": None,
+        "Left (Red center)": None,
+        "Back (Green center)": None
     }
 
 # ------------------------------------------------------------------
-# SIMPLE COLOR DETECTOR
+# COLOR DETECTOR
 # ------------------------------------------------------------------
-def scan_face_colors(image_bytes):
+def scan_face_colors(image_bytes, center_color):
     file_bytes = np.asarray(bytearray(image_bytes.read()), dtype=np.uint8)
     opencv_image = cv2.imdecode(file_bytes, 1)
     hsv = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2HSV)
@@ -31,10 +32,13 @@ def scan_face_colors(image_bytes):
     
     for row in range(3):
         for col in range(3):
+            if row == 1 and col == 1:
+                grid_colors.append(center_color)
+                continue
+                
             cx = int((col + 0.5) * (w / 3))
             cy = int((row + 0.5) * (h / 3))
             
-            # Draw visual grid squares on the image preview
             cv2.rectangle(opencv_image, (cx-20, cy-20), (cx+20, cy+20), (255, 255, 255), 2)
             
             pixel_hsv = hsv[cy, cx]
@@ -54,42 +58,24 @@ def scan_face_colors(image_bytes):
     return opencv_image, grid_colors
 
 # ------------------------------------------------------------------
-# NATIVE PYTHON SOLVER ENGINE (Calculates based on scanned layout)
-# ------------------------------------------------------------------
-def generate_real_solution(cube_data):
-    """
-    Analyzes the differences between the current layout and a solved layout
-    to generate the actual fix turns required.
-    """
-    # Create a giant list of all the colors combined
-    scrambled_sequence = "".join([v for v in cube_data.values() if v is not None])
-    
-    # Simple mathematical seed generator based on the custom scramble pattern
-    # to reverse-engineer the positions dynamically
-    state_score = sum(ord(char) for char in scrambled_sequence) % 5
-    
-    # Dynamic real solutions paths based on your real cube data input variants
-    base_solutions = [
-        ["R", "U", "R'", "U'", "F", "R", "U", "R'", "U'", "F'", "R", "U2", "R'"],
-        ["F", "R", "U", "R'", "U'", "F'", "U", "R", "U'", "L'", "U", "R'", "U'"],
-        ["R2", "U", "F", "B'", "R2", "F'", "B", "U", "R2", "U2", "R", "U", "R'"],
-        ["U", "R", "U'", "L'", "U", "R'", "U'", "L", "R", "U", "R'", "U'", "F'"],
-        ["F2", "U", "L", "R'", "F2", "L'", "R", "U", "F2", "U'", "R", "U", "R'"]
-    ]
-    
-    # Return the targeted solution matching your specific cube layout
-    return base_solutions[state_score]
-
-# ------------------------------------------------------------------
-# STEP-BY-STEP STEPPER INTERFACE
+# SCANNING INTERFACE
 # ------------------------------------------------------------------
 st.subheader("📸 Step 1: Scan All 6 Sides")
+
+face_centers = {
+    "Front (Blue center)": "B",
+    "Top (White center)": "W",
+    "Bottom (Yellow center)": "Y",
+    "Right (Orange center)": "O",
+    "Left (Red center)": "R",
+    "Back (Green center)": "G"
+}
 
 current_face = st.selectbox("Which side are you scanning right now?", list(st.session_state.cube_faces.keys()))
 img_file = st.camera_input(f"Take picture of {current_face}")
 
 if img_file:
-    processed_img, detected_colors = scan_face_colors(img_file)
+    processed_img, detected_colors = scan_face_colors(img_file, face_centers[current_face])
     st.session_state.cube_faces[current_face] = "".join(detected_colors)
     st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB), caption=f"Captured {current_face}")
     st.success(f"Saved {current_face} successfully!")
@@ -114,37 +100,64 @@ st.write("---")
 st.subheader("🔮 Step 2: Get Solutions")
 
 if not all_scanned:
-    st.info("Please capture all 6 sides above using the camera before calculating moves.")
+    st.info("Please capture all 6 sides using the camera layout above before processing solver steps.")
 else:
     if st.button("🚀 Calculate Moves to Solve", type="primary"):
-        with st.spinner("Processing full 3D layout mapping..."):
-            
-            # CRUCIAL: Generate the REAL moves from your camera data
-            moves = generate_real_solution(st.session_state.cube_faces)
-            
-            st.success("🎉 Solved! Follow these real moves straight down in order:")
-            st.write("---")
-            
-            for i, move in enumerate(moves):
-                explanation = ""
-                if move == "R": explanation = "Turn the RIGHT side clockwise (toward you)."
-                elif move == "R'": explanation = "Turn the RIGHT side counter-clockwise (away from you)."
-                elif move == "R2": explanation = "Turn the RIGHT side completely around twice."
-                elif move == "U": explanation = "Turn the TOP layer clockwise."
-                elif move == "U'": explanation = "Turn the TOP layer counter-clockwise."
-                elif move == "U2": explanation = "Turn the TOP layer completely around twice."
-                elif move == "F": explanation = "Turn the FRONT face clockwise."
-                elif move == "F'": explanation = "Turn the FRONT face counter-clockwise."
-                elif move == "F2": explanation = "Turn the FRONT face completely around twice."
-                elif move == "L": explanation = "Turn the LEFT side clockwise."
-                elif move == "L'": explanation = "Turn the LEFT side counter-clockwise."
-                elif move == "B": explanation = "Turn the BACK face clockwise."
-                elif move == "B'": explanation = "Turn the BACK face counter-clockwise."
+        with st.spinner("Calculating exact mechanical rotation path..."):
+            try:
+                # Map your custom color structure directly to Kociemba's spatial definitions
+                # Kociemba expects: Up, Right, Front, Down, Left, Back
+                mapping = {
+                    "W": "U", "O": "R", "B": "F", "Y": "D", "R": "L", "G": "B"
+                }
                 
-                st.markdown(f"### Move {i+1}: &nbsp;&nbsp; `{move}`")
-                if explanation:
-                    st.caption(explanation)
+                raw_str = (
+                    st.session_state.cube_faces["Top (White center)"] +
+                    st.session_state.cube_faces["Right (Orange center)"] +
+                    st.session_state.cube_faces["Front (Blue center)"] +
+                    st.session_state.cube_faces["Bottom (Yellow center)"] +
+                    st.session_state.cube_faces["Left (Red center)"] +
+                    st.session_state.cube_faces["Back (Green center)"]
+                )
+                
+                kociemba_string = "".join([mapping[char] for char in raw_str])
+                
+                # Run the math solver engine
+                sol_raw = kociemba.solve(kociemba_string)
+                moves = sol_raw.split()
+                
+                st.success("🎉 Solution Calculated! Keep BLUE facing you and WHITE on top while turning:")
                 st.write("---")
+                
+                for i, move in enumerate(moves):
+                    base_move = move[0]
+                    modifier = move[1] if len(move) > 1 else ""
+                    
+                    # Convert internal Kociemba tokens to human text matching your exact colors
+                    face_names = {
+                        "U": "TOP (White center)", 
+                        "D": "BOTTOM (Yellow center)", 
+                        "F": "FRONT (Blue center)", 
+                        "B": "BACK (Green center)", 
+                        "L": "LEFT (Red center)", 
+                        "R": "RIGHT (Orange center)"
+                    }
+                    target = face_names[base_move]
+                    
+                    if modifier == "'":
+                        explanation = f"Turn the {target} side counter-clockwise 90 degrees."
+                    elif modifier == "2":
+                        explanation = f"Turn the {target} side completely around twice (180 degrees)."
+                    else:
+                        explanation = f"Turn the {target} side clockwise 90 degrees."
+                    
+                    st.markdown(f"### Move {i+1}: &nbsp;&nbsp; `{move}`")
+                    st.caption(explanation)
+                    st.write("---")
+                    
+            except Exception as e:
+                st.error("Invalid Scanned Configuration Layout! The math says this combination of pieces is physically impossible.")
+                st.info("💡 **Troubleshooting Tip:** Ensure that room lighting isn't causing the camera to mistake White squares for Yellow, or Red squares for Orange!")
 
 if st.button("🔄 Clear Camera Memory & Start Over"):
     st.session_state.cube_faces = {k: None for k in st.session_state.cube_faces}
