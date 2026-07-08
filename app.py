@@ -6,9 +6,9 @@ import kociemba
 st.set_page_config(page_title="Real Rubik's Cube Solver", page_icon="🎲", layout="centered")
 
 st.title("🎲 Custom Rubik's Cube Solver")
-st.write("Snap each face, verify the colors on the grid, and tweak any errors before solving!")
+st.write("Fill out the grids using your exact layout: 1-3 (Top row), 4-6 (Middle row), 7-9 (Bottom row).")
 
-# Initialize state tracker
+# Initialize state tracker with 9 entries per face
 if "cube_faces" not in st.session_state:
     st.session_state.cube_faces = {
         "Top (White center)": ["W"] * 9,
@@ -19,7 +19,6 @@ if "cube_faces" not in st.session_state:
         "Right (Orange center)": ["O"] * 9
     }
 
-# Map face center labels to internal color codes
 face_centers = {
     "Top (White center)": "W",
     "Bottom (Yellow center)": "Y",
@@ -29,7 +28,6 @@ face_centers = {
     "Right (Orange center)": "O"
 }
 
-# Color palette styling dictionary
 color_styles = {
     "W": "⬜ White", "Y": "🟨 Yellow", "G": "🟩 Green", 
     "B": "🟦 Blue", "O": "🟧 Orange", "R": "🟥 Red"
@@ -43,7 +41,6 @@ current_face = st.selectbox("Which side are you scanning right now?", list(st.se
 
 img_file = st.camera_input(f"Take a picture of the {current_face} face")
 
-# Computer Vision Color Fallback Processing
 if img_file:
     file_bytes = np.asarray(bytearray(img_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, 1)
@@ -70,22 +67,19 @@ if img_file:
             scanned_colors.append(color)
             
     st.session_state.cube_faces[current_face] = scanned_colors
-    st.toast(f"Captured layout for {current_face}!")
 
-# INTERACTIVE GRID OVERRIDE - Fix any wrong colors right here manually
 st.write(f"### 🛠️ Verify & Correct the **{current_face}** Grid Layout:")
-st.caption("If the camera guessed a square wrong because of room lighting, change it below:")
+st.caption("1-3 = Top Row | 4-6 = Middle Row | 7-9 = Bottom Row")
 
 face_grid = st.session_state.cube_faces[current_face]
 
-# Draw the 3x3 layout selector block
 idx = 0
 for row in range(3):
     cols = st.columns(3)
     for col in range(3):
         with cols[col]:
             if row == 1 and col == 1:
-                st.write(f"**Center**\n\n{color_styles[face_centers[current_face]]}")
+                st.write(f"**Pos 5 (Center)**\n\n{color_styles[face_centers[current_face]]}")
             else:
                 current_val = face_grid[idx]
                 selected_val = st.selectbox(
@@ -99,30 +93,32 @@ for row in range(3):
         idx += 1
 
 # ------------------------------------------------------------------
-# STEP 2: MATHEMATICAL FULL CUBE SOLVER
+# STEP 2: MATHEMATICAL SOLVER WITH USER POSITION MAPPING
 # ------------------------------------------------------------------
 st.write("---")
 st.subheader("🔮 Step 2: Calculate Your Solution")
 
 if st.button("🚀 Calculate Moves to Solve", type="primary"):
-    with st.spinner("Analyzing cube arrangement details..."):
+    with st.spinner("Translating your 1-9 grid configurations into standard solution arrays..."):
         try:
-            # Map layout definitions to Kociemba standard notations
+            # Map user's colors to Kociemba standard symbols
+            # Target layout mapping for custom colors:
+            # W -> U (Up), O -> R (Right), B -> F (Front), Y -> D (Down), R -> L (Left), G -> B (Back)
             mapping = {"W": "U", "O": "R", "B": "F", "Y": "D", "R": "L", "G": "B"}
             
-            # String building using explicit face names matches
-            raw_str = (
-                "".join(st.session_state.cube_faces["Top (White center)"]) +
-                "".join(st.session_state.cube_faces["Right (Orange center)"]) +
-                "".join(st.session_state.cube_faces["Front (Blue center)"]) +
-                "".join(st.session_state.cube_faces["Bottom (Yellow center)"]) +
-                "".join(st.session_state.cube_faces["Left (Red center)"]) +
-                "".join(st.session_state.cube_faces["Back (Green center)"])
-            )
+            # Extract lists directly matching your 1-9 input assignments
+            U_face = st.session_state.cube_faces["Top (White center)"]
+            R_face = st.session_state.cube_faces["Right (Orange center)"]
+            f_face = st.session_state.cube_faces["Front (Blue center)"]
+            D_face = st.session_state.cube_faces["Bottom (Yellow center)"]
+            L_face = st.session_state.cube_faces["Left (Red center)"]
+            B_face = st.session_state.cube_faces["Back (Green center)"]
             
+            # Build the continuous string in strict Kociemba sequence ordering: U1-U9, R1-R9, F1-F9, D1-D9, L1-L9, B1-B9
+            raw_str = "".join(U_face) + "".join(R_face) + "".join(f_face) + "".join(D_face) + "".join(L_face) + "".join(B_face)
             kociemba_string = "".join([mapping[char] for char in raw_str])
             
-            # Run solution search
+            # Execute search parameters
             sol_raw = kociemba.solve(kociemba_string)
             moves = sol_raw.split()
             
@@ -153,4 +149,8 @@ if st.button("🚀 Calculate Moves to Solve", type="primary"):
                 
         except Exception as e:
             st.error("Invalid Configuration Layout! Check that your color grids completely match your physical cube.")
-            st.info("💡 **Quick Fix:** Change the dropdown lists under Step 1 to match any tiles the camera misread!")
+            st.info("💡 **Quick Fix:** Double-check every face selection to make sure no colors got switched up!")
+
+if st.button("🔄 Clear Camera Memory & Start Over"):
+    st.session_state.cube_faces = {k: ["W" if face_centers[k]=="W" else "Y" if face_centers[k]=="Y" else "B" if face_centers[k]=="B" else "G" if face_centers[k]=="G" else "R" if face_centers[k]=="R" else "O" for _ in range(9)] for k in st.session_state.cube_faces}
+    st.rerun()
