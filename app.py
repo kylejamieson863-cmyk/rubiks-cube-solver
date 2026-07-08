@@ -1,9 +1,9 @@
 import streamlit as st
 import kociemba
 
-st.set_page_config(page_title="Lucas' Speedy Solver", page_icon="🎲", layout="centered")
+st.set_page_config(page_title="Lucas' Ultimate Cube Solver", page_icon="🎲", layout="centered")
 
-# Smooth Mobile Styling Pack
+# Smooth Mobile Styling Pack - Forces grids to stay square on mobile screens
 st.markdown("""
     <style>
     [data-testid="column"] {
@@ -20,32 +20,44 @@ st.markdown("""
         padding: 10px 0px !important;
         font-weight: bold !important;
     }
+    select {
+        font-size: 14px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ Lucas' Lightning Cube Solver")
-st.write("Hold the cube so **BLUE is facing you** and **WHITE is on top**.")
+st.title("⚡ Lucas' Ultimate Cube Solver")
+st.write("Hold your cube with **BLUE facing you** and **WHITE on top**.")
+st.write("Pick the colors for all 6 sides below. It will not lag at all while you choose!")
 
-# ------------------------------------------------------------------
-# SPEEDY STATE TRACKER (Uses form processing to block lag)
-# ------------------------------------------------------------------
-# Default solved states for tracking
-face_keys = ["Top (White)", "Front (Blue)", "Right (Orange)"]
-centers = {"Top (White)": "W", "Front (Blue)": "B", "Right (Orange)": "O"}
+# Fixed center mapping based on your cube
+face_keys = [
+    "Top (White center)", 
+    "Front (Blue center)", 
+    "Right (Orange center)", 
+    "Left (Red center)", 
+    "Back (Green center)", 
+    "Bottom (Yellow center)"
+]
+centers = {
+    "Top (White center)": "W", 
+    "Front (Blue center)": "B", 
+    "Right (Orange center)": "O",
+    "Left (Red center)": "R", 
+    "Back (Green center)": "G", 
+    "Bottom (Yellow center)": "Y"
+}
 color_emojis = {"W": "⬜", "Y": "🟨", "G": "🟩", "B": "🟦", "R": "🟥", "O": "🟧"}
 
-# Create a form structure so clicking buttons does NOT cause web lag
-with st.form("cube_paint_form"):
-    st.subheader("🎨 Paint the 3 Visible Sides")
-    st.caption("Change the dropdown choices below to match your cube's layout:")
-    
+# --- THE INSTANT NO-LAG FORM ---
+with st.form("ultimate_paint_form"):
     final_inputs = {}
     
+    # Generate all 6 faces smoothly on one page
     for face in face_keys:
-        st.write(f"### 🧱 {face} Side")
+        st.write(f"### 🧱 {face}")
         row_cells = []
         
-        # Build 3 rows of inputs per face layout
         idx = 1
         for r in range(3):
             cols = st.columns(3)
@@ -56,46 +68,39 @@ with st.form("cube_paint_form"):
                         row_cells.append(centers[face])
                     else:
                         choice = st.selectbox(
-                            f"Tile {idx}",
+                            f"{idx}",
                             options=["W", "Y", "G", "B", "R", "O"],
                             format_func=lambda x: color_emojis[x],
                             index=["W", "Y", "G", "B", "R", "O"].index(centers[face]),
-                            key=f"select_{face}_{idx}"
+                            key=f"all_faces_{face}_{idx}"
                         )
                         row_cells.append(choice)
                 idx += 1
         final_inputs[face] = row_cells
         st.write("---")
 
-    # The actual single submit execution execution block
-    submit_solve = st.form_submit_button("✨ Solve My Cube Instantly!", type="primary")
+    # Single Submit Button keeps the page from lagging while clicking options
+    submit_solve = st.form_submit_button("✨ Solve My Cube!", type="primary")
 
-# ------------------------------------------------------------------
-# LIVE CALCULATION (AUTO-FILLS MISSING BACKGROUND EXTRA FACES)
-# ------------------------------------------------------------------
+# --- CALCULATION LOGIC ---
 if submit_solve:
-    with st.spinner("Calculating magic shortcut paths..."):
+    with st.spinner("Calculating perfect path..."):
         try:
-            # Auto-calculate the hidden opposite sides based on standard layout algorithms 
-            # to prevent validation crashes!
+            # Map layout to Kociemba standard tokens
             mapping = {"W": "U", "O": "R", "B": "F", "Y": "D", "R": "L", "G": "B"}
             
-            # Synthesize missing layout faces seamlessly
-            u_str = "".join([mapping[c] for c in final_inputs["Top (White)"]])
-            f_str = "".join([mapping[c] for c in final_inputs["Front (Blue)"]])
-            r_str = "".join([mapping[c] for c in final_inputs["Right (Orange)"]])
+            raw_str = (
+                "".join([mapping[c] for c in final_inputs["Top (White center)"]]) +
+                "".join([mapping[c] for c in final_inputs["Right (Orange center)"]]) +
+                "".join([mapping[c] for c in final_inputs["Front (Blue center)"]]) +
+                "".join([mapping[c] for c in final_inputs["Bottom (Yellow center)"]]) +
+                "".join([mapping[c] for c in final_inputs["Left (Red center)"]]) +
+                "".join([mapping[c] for c in final_inputs["Back (Green center)"]])
+            )
             
-            # Generate stable math sequences for hidden background layers
-            d_str = "D" * 9
-            l_str = "L" * 9
-            b_str = "B" * 9
+            moves = kociemba.solve(raw_str).split()
             
-            full_kociemba = u_str + r_str + f_str + d_str + l_str + b_str
-            
-            # Execute calculation lookup
-            moves = kociemba.solve(full_kociemba).split()
-            
-            st.success("🎉 Steps Ready! Look at BLUE, with WHITE on top:")
+            st.success(f"🎉 Solved in {len(moves)} steps! Keep BLUE facing you and WHITE on top:")
             st.write("---")
             
             for i, move in enumerate(moves):
@@ -105,30 +110,27 @@ if submit_solve:
                 direction = ""
                 if face == "U":
                     direction = "➡️ Turn the White TOP layer to the Right" if mod == "'" else "⬅️ Turn the White TOP layer to the Left"
+                    if mod == "2": direction = "🔄 Turn the White TOP layer around twice"
+                elif face == "D":
+                    direction = "➡️ PUSH the Yellow BOTTOM layer to the Right" if mod == "" else "⬅️ PUSH the Yellow BOTTOM layer to the Left"
+                    if mod == "2": direction = "🔄 Turn the Yellow BOTTOM layer around twice"
                 elif face == "F":
                     direction = "➡️ Turn the Blue FRONT face Clockwise" if mod == "" else "⬅️ Turn the Blue FRONT face Counter-Clockwise"
+                    if mod == "2": direction = "🔄 Turn the Blue FRONT face around twice"
+                elif face == "B":
+                    direction = "➡️ Turn the Green BACK wall to the Right" if mod == "'" else "⬅️ Turn the Green BACK wall to the Left"
+                    if mod == "2": direction = "🔄 Turn the Green BACK wall around twice"
+                elif face == "L":
+                    direction = "⬇️ Roll the Red LEFT side DOWN toward you" if mod == "" else "⬆️ Push the Red LEFT side UP away from you"
+                    if mod == "2": direction = "🔄 Spin the Red LEFT side around twice"
                 elif face == "R":
                     direction = "⬆️ Push the Orange RIGHT side UP away from you" if mod == "" else "⬇️ Roll the Orange RIGHT side DOWN toward you"
-                else:
-                    # Ignore moves on background layers to keep things incredibly simple for an 8 year old
-                    continue
+                    if mod == "2": direction = "🔄 Spin the Orange RIGHT side around twice"
                 
                 st.markdown(f"### Step {i+1}")
                 st.info(direction)
                 st.write("---")
                 
-        except:
-            # Fallback solver logic sequence to guarantee he ALWAYS gets a working path 
-            # even if a side color entry was slightly off
-            st.success("🎉 Steps Ready! Follow these moves to align your cube layers:")
-            st.write("---")
-            backup_moves = [
-                "⬆️ Push the Orange RIGHT side UP away from you",
-                "⬅️ Turn the White TOP layer to the Left",
-                "⬇️ Roll the Orange RIGHT side DOWN toward you",
-                "➡️ Turn the White TOP layer to the Right"
-            ]
-            for i, move_text in enumerate(backup_moves):
-                st.markdown(f"### Step {i+1}")
-                st.info(move_text)
-                st.write("---")
+        except Exception as e:
+            st.error("Invalid Color Layout! One or more colors don't match up right.")
+            st.info("💡 **Tip:** Double check that you have exactly 9 squares of each color total across the whole list!")
