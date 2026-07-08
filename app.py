@@ -1,7 +1,28 @@
 import streamlit as st
 import kociemba
 
-st.set_page_config(page_title="Kid-Friendly Cube Solver", page_icon="🎲", layout="wide")
+st.set_page_config(page_title="Lucas' Cube Solver", page_icon="🎲", layout="centered")
+
+# --- MOBILE CSS FORCE PACK ---
+# This CSS forces Streamlit columns to stay horizontal on mobile phones instead of stacking vertically.
+st.markdown("""
+    <style>
+    [data-testid="column"] {
+        width: calc(33.3333% - 8px) !important;
+        flex: 1 1 calc(33.3333% - 8px) !important;
+        min-width: calc(33.3333% - 8px) !important;
+    }
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: 4px !important;
+    }
+    .stButton>button {
+        width: 100% !important;
+        padding: 4px 0px !important;
+        font-size: 16px !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 st.title("🎈 Lucas' Rubik's Cube Solver")
 st.write("Match the colors on the screen to your cube, then follow the arrows to solve it!")
@@ -9,7 +30,6 @@ st.write("Match the colors on the screen to your cube, then follow the arrows to
 # ------------------------------------------------------------------
 # INITIALIZATION
 # ------------------------------------------------------------------
-# Fixed kid-friendly center arrangement
 face_order = ["Top (White)", "Left (Red)", "Front (Blue)", "Right (Orange)", "Back (Green)", "Bottom (Yellow)"]
 face_centers = {"Top (White)": "W", "Left (Red)": "R", "Front (Blue)": "B", "Right (Orange)": "O", "Back (Green)": "G", "Bottom (Yellow)": "Y"}
 
@@ -23,63 +43,58 @@ if "brush" not in st.session_state:
     st.session_state.brush = "W"
 
 # ------------------------------------------------------------------
-# PALETTE SELECTION
+# PALETTE SELECTION (Forced 3 Columns per Row on Mobile)
 # ------------------------------------------------------------------
 st.subheader("🎨 1. Pick a Color")
-palette_cols = st.columns(6)
-for i, code in enumerate(["W", "Y", "G", "B", "R", "O"]):
-    with palette_cols[i]:
-        active = "⭐ " if st.session_state.brush == code else ""
+codes = ["W", "Y", "G", "B", "R", "O"]
+
+# Row 1 of Palette
+p_cols1 = st.columns(3)
+for i in range(3):
+    code = codes[i]
+    with p_cols1[i]:
+        active = "⭐" if st.session_state.brush == code else ""
+        if st.button(f"{active}{color_emojis[code]}\n\n{color_names[code]}", key=f"p_{code}"):
+            st.session_state.brush = code
+            st.rerun()
+
+# Row 2 of Palette
+p_cols2 = st.columns(3)
+for i in range(3, 6):
+    code = codes[i]
+    with p_cols2[i-3]:
+        active = "⭐" if st.session_state.brush == code else ""
         if st.button(f"{active}{color_emojis[code]}\n\n{color_names[code]}", key=f"p_{code}"):
             st.session_state.brush = code
             st.rerun()
 
 # ------------------------------------------------------------------
-# THE FLATTENED CUBE MAP LAYOUT
+# STEP 2: PAINT YOUR CUBE (Displays one clean face layout at a time)
 # ------------------------------------------------------------------
 st.write("---")
 st.subheader("🧩 2. Paint Your Cube")
-st.caption("Tap the squares to change their colors until they look exactly like your real cube!")
+st.caption("Select a face below, then tap the grid squares to match your real cube colors.")
 
-def draw_kid_grid(face_name):
-    st.markdown(f"**{face_name}**")
-    grid = st.session_state.cube_state[face_name]
-    idx = 0
-    for r in range(3):
-        cols = st.columns(3)
-        for c in range(3):
-            with cols[c]:
-                if r == 1 and c == 1:
-                    st.button(color_emojis[face_centers[face_name]], disabled=True, key=f"c_{face_name}")
-                else:
-                    current_color = grid[idx]
-                    if st.button(color_emojis[current_color], key=f"b_{face_name}_{idx}"):
-                        st.session_state.cube_state[face_name][idx] = st.session_state.brush
-                        st.rerun()
-            idx += 1
+# Dropdown works best on mobile screens to save vertical space
+current_face = st.selectbox("Choose the side you want to paint:", face_order)
 
-# Displaying faces in a clean, open 2D cross layout
-row1_cols = st.columns([1, 1, 1])
-with row1_cols[1]:
-    draw_kid_grid("Top (White)")
+st.write(f"### Grid for {current_face}:")
+grid = st.session_state.cube_state[current_face]
 
-st.write("")
-
-row2_cols = st.columns(4)
-with row2_cols[0]:
-    draw_kid_grid("Left (Red)")
-with row2_cols[1]:
-    draw_kid_grid("Front (Blue)")
-with row2_cols[2]:
-    draw_kid_grid("Right (Orange)")
-with row2_cols[3]:
-    draw_kid_grid("Back (Green)")
-
-st.write("")
-
-row3_cols = st.columns([1, 1, 1])
-with row3_cols[1]:
-    draw_kid_grid("Bottom (Yellow)")
+idx = 0
+for r in range(3):
+    grid_cols = st.columns(3)
+    for c in range(3):
+        with grid_cols[c]:
+            if r == 1 and c == 1:
+                # Locked middle center block
+                st.button(f"📍\n\n{color_emojis[face_centers[current_face]]}", disabled=True, key=f"c_{current_face}")
+            else:
+                current_color = grid[idx]
+                if st.button(f"{idx+1}\n\n{color_emojis[current_color]}", key=f"b_{current_face}_{idx}"):
+                    st.session_state.cube_state[current_face][idx] = st.session_state.brush
+                    st.rerun()
+        idx += 1
 
 # ------------------------------------------------------------------
 # GENERATE SIMPLIFIED MOVES
@@ -108,10 +123,7 @@ if st.button("✨ Show Me How To Solve It!", type="primary"):
             face = move[0]
             mod = move[1] if len(move) > 1 else ""
             
-            # Map moves to crystal-clear kid instructions
-            title = f"Step {i+1}"
             direction = ""
-            
             if face == "U":
                 direction = "➡️ Turn the White TOP layer to the Right" if mod == "'" else "⬅️ Turn the White TOP layer to the Left"
                 if mod == "2": direction = "🔄 Turn the White TOP layer around twice"
@@ -131,7 +143,7 @@ if st.button("✨ Show Me How To Solve It!", type="primary"):
                 direction = "⬆️ Push the Orange RIGHT side UP away from you" if mod == "" else "⬇️ Roll the Orange RIGHT side DOWN toward you"
                 if mod == "2": direction = "🔄 Spin the Orange RIGHT side around twice"
             
-            st.markdown(f"### {title}")
+            st.markdown(f"### Step {i+1}")
             st.info(direction)
             st.write("---")
             
