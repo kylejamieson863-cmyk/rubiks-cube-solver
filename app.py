@@ -3,7 +3,7 @@ import kociemba
 
 st.set_page_config(page_title="Kid-Friendly Cube Solver", page_icon="🎲", layout="wide")
 
-st.title("🎈 Super Easy Rubik's Cube Solver")
+st.title("🎈 Rubik's Cube Solver")
 st.write("Match the colors on the screen to your cube, then follow the arrows to solve it!")
 
 # ------------------------------------------------------------------
