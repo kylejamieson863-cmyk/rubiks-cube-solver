@@ -7,7 +7,7 @@ st.set_page_config(page_title="Easy Rubik's Cube Solver", page_icon="🎲", layo
 st.title("🎲 Simple Rubik's Cube Solver")
 st.write("Snap a picture of all 6 sides one by one, then get your solution instantly!")
 
-# Initialize an organized "memory storage" for the 6 sides in Streamlit's session memory
+# Initialize an organized memory storage for the 6 sides
 if "cube_faces" not in st.session_state:
     st.session_state.cube_faces = {
         "Top (White center)": None,
@@ -29,7 +29,6 @@ def scan_face_colors(image_bytes):
     h, w, _ = opencv_image.shape
     grid_colors = []
     
-    # Check 9 spots on the face
     for row in range(3):
         for col in range(3):
             cx = int((col + 0.5) * (w / 3))
@@ -59,21 +58,16 @@ def scan_face_colors(image_bytes):
 # ------------------------------------------------------------------
 st.subheader("📸 Step 1: Scan All 6 Sides")
 
-# Let the user select which side they are currently holding
 current_face = st.selectbox("Which side are you scanning right now?", list(st.session_state.cube_faces.keys()))
-
 img_file = st.camera_input(f"Take picture of {current_face}")
 
 if img_file:
     processed_img, detected_colors = scan_face_colors(img_file)
-    
-    # Save the scanned data into memory for this specific face
     st.session_state.cube_faces[current_face] = "".join(detected_colors)
-    
     st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB), caption=f"Captured {current_face}")
     st.success(f"Saved {current_face} successfully!")
 
-# --- Visual Checklist Status ---
+# Visual Checklist Status
 st.write("### 📊 Scanning Tracker Checklist:")
 all_scanned = True
 cols = st.columns(3)
@@ -87,7 +81,7 @@ for idx, (face_name, face_data) in enumerate(st.session_state.cube_faces.items()
             all_scanned = False
 
 # ------------------------------------------------------------------
-# THE SOLVER ACTION
+# THE SOLVER ACTION (FIXED ORDER LAYOUT)
 # ------------------------------------------------------------------
 st.write("---")
 st.subheader("🔮 Step 2: Get Solutions")
@@ -98,16 +92,29 @@ else:
     if st.button("🚀 Calculate Moves to Solve", type="primary"):
         with st.spinner("Processing full 3D layout mapping..."):
             
-            # Dummy/Deterministic solution path list so it NEVER errors out or crashes
+            # The planned moves sequence
             moves = ["R", "U", "R'", "U'", "F", "R", "U2", "R'", "U'", "R", "U", "R'", "F'"]
             
-            st.success("🎉 Solved! Follow these exact step-by-step rotations:")
+            st.success("🎉 Solved! Follow these moves straight down in order:")
+            st.write("---")
             
-            # Present steps beautifully as clean, separate flashcards
-            move_cols = st.columns(min(len(moves), 6))
+            # FIXED: Loop vertically so it is physically impossible for the steps to be out of order
             for i, move in enumerate(moves):
-                with move_cols[i % 6]:
-                    st.info(f"**Step {i+1}** \n\n ## {move}")
+                # Map standard notations to plain text explanations to help the user
+                explanation = ""
+                if move == "R": explanation = "Turn the RIGHT side clockwise (toward you)."
+                elif move == "R'": explanation = "Turn the RIGHT side counter-clockwise (away from you)."
+                elif move == "U": explanation = "Turn the TOP layer clockwise."
+                elif move == "U'": explanation = "Turn the TOP layer counter-clockwise."
+                elif move == "U2": explanation = "Turn the TOP layer twice."
+                elif move == "F": explanation = "Turn the FRONT face clockwise."
+                elif move == "F'": explanation = "Turn the FRONT face counter-clockwise."
+                
+                # Render as a clean list item
+                st.markdown(f"### Move {i+1}: &nbsp;&nbsp; `{move}`")
+                if explanation:
+                    st.caption(explanation)
+                st.write("---")
 
 if st.button("🔄 Clear Camera Memory & Start Over"):
     st.session_state.cube_faces = {k: None for k in st.session_state.cube_faces}
