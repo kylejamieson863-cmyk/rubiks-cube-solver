@@ -2,7 +2,8 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-from rubik.cube import Cube
+import magiccube
+from magiccube.solver.basic_solver import BasicSolver
 
 st.set_page_config(page_title="Rubik's Cube Solver", page_icon="🎲", layout="centered")
 
@@ -17,14 +18,14 @@ mode = st.sidebar.radio("Choose Input Method:", ["Manual Text Input", "Camera Sc
 
 st.sidebar.markdown("""
 ### Cube Face Order Guide
-A standard cube representation uses 54 characters representing the grid.
-Colors map to face letters:
-* **O** = Orange
-* **Y** = Yellow
-* **W** = White
-* **G** = Green
-* **B** = Blue
-* **R** = Red
+A standard configuration uses 54 characters representing the 6 faces.
+The solver uses standard colors:
+* **W** = White (Up)
+* **Y** = Yellow (Down)
+* **O** = Orange (Left)
+* **R** = Red (Right)
+* **G** = Green (Front)
+* **B** = Blue (Back)
 """)
 
 # ------------------------------------------------------------------
@@ -50,7 +51,6 @@ def scan_face_colors(image_bytes):
             sat = pixel_hsv[1]
             val = pixel_hsv[2]
             
-            # Fixed syntax typo by adding the # comments
             if sat < 40 and val > 200: color = "W" # White
             elif hue < 10 or hue > 170: color = "R" # Red
             elif 11 <= hue <= 25: color = "O" # Orange
@@ -68,10 +68,11 @@ def scan_face_colors(image_bytes):
 if mode == "Manual Text Input":
     st.subheader("Manual Cube State Entry")
     
-    # Simple example pattern using standard colors
-    default_scramble = "OOOOOOOOOYYYWWWGGGBBBYYYWWWGGGBBBYYYWWWGGGBBBRRRRRRRRR"
+    # default_state needs to match exactly magiccube format (54 chars)
+    # Order: Y, R, G, O, B, W (9 chars each)
+    default_scramble = "YYYYYYYYYRRRRRRRRRGGGGGGGGGOOOOOOOOOBBBBBBBBBWWWWWWWWW"
     cube_string = st.text_input(
-        "Enter your 54-character cube string (O, Y, W, G, B, R):", 
+        "Enter your 54-character cube string:", 
         value=default_scramble,
         max_chars=54
     )
@@ -86,8 +87,8 @@ else:
         st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB), caption="Processed Face Grid Map")
         st.write("Detected Matrix:", "".join(detected_colors))
         
-        # Build placeholder string
-        cube_string = "".join(detected_colors) + "Y"*9 + "W"*9 + "G"*9 + "B"*9 + "R"*9
+        # Build placeholder string matching order requirement
+        cube_string = "".join(detected_colors) + "R"*9 + "G"*9 + "O"*9 + "B"*9 + "W"*9
 
 # ------------------------------------------------------------------
 # SOLVER RUNNER
@@ -95,19 +96,19 @@ else:
 st.write("---")
 if st.button("🔮 Calculate Moves", type="primary"):
     if len(cube_string) != 54:
-        st.error(f"Error: The string must be exactly 54 characters long. You supplied {len(cube_string)}.")
+        st.error(f"Error: String must be exactly 54 characters. You supplied {len(cube_string)}.")
     else:
         with st.spinner("Calculating solution sequence..."):
             try:
-                # Initialize the cube with the user's string configuration
-                c = Cube(cube_string)
+                # Initialize the 3x3 cube with the configuration
+                cube = magiccube.Cube(3, cube_string)
                 
-                # rubik-cube library has an internal solver state
-                from rubik.solver import Solver
-                solver = Solver(c)
-                solver.solve()
+                # Use basic layer solver
+                solver = BasicSolver(cube)
+                actions = solver.solve()
                 
-                moves = solver.moves
+                # Convert the actions list to strings
+                moves = [str(action) for action in actions]
                 
                 if not moves:
                     st.success("🎉 The cube is already solved!")
@@ -115,12 +116,11 @@ if st.button("🔮 Calculate Moves", type="primary"):
                     st.success(f"🎉 Solution Found in {len(moves)} steps!")
                     st.markdown("### 📋 Step-by-Step Directions:")
                     
-                    # Group moves into columns cleanly
                     cols = st.columns(min(len(moves), 6))
                     for i, move in enumerate(moves):
                         with cols[i % 6]:
                             st.info(f"**Step {i+1}** \n\n ## {move}")
                             
             except Exception as e:
-                st.error("Invalid Cube State Layout! Please check your colors.")
+                st.error("Invalid Cube Layout! Please check your configuration values.")
                 st.caption(f"Engine Debug Error: {str(e)}")
